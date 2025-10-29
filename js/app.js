@@ -1,5 +1,5 @@
 // 全局变量
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["tyyszy","dyttzy", "bfzy", "ruyi"]'); // 默认选中资源
+let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["dyttzy","ruyi","bfzy","tyyszy","ffzy","heimuer","zy360","iqiyi","wolong","hwba","jisu","dbzy","mozhua","mdzy","zuid","yinghua","baidu","wujin","wwzy","ikun"]'); // 默认选中所有普通资源
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
 // 添加当前播放的集数索引
@@ -23,12 +23,10 @@ document.addEventListener('DOMContentLoaded', function () {
     updateSelectedApiCount();
 
     // 渲染搜索历史
-    renderSearchHistory();
-
-    // 设置默认API选择（如果是第一次加载）
+    renderSearchHistory();    // 设置默认API选择（如果是第一次加载）
     if (!localStorage.getItem('hasInitializedDefaults')) {
-        // 默认选中资源
-        selectedAPIs = ["tyyszy", "bfzy", "dyttzy", "ruyi"];
+        // 默认选中所有普通资源
+        selectedAPIs = ["dyttzy","ruyi","bfzy","tyyszy","ffzy","heimuer","zy360","iqiyi","wolong","hwba","jisu","dbzy","mozhua","mdzy","zuid","yinghua","baidu","wujin","wwzy","ikun"];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
         // 默认选中过滤开关

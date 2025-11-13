@@ -207,3 +207,34 @@
         grid-template-columns: repeat(4, 1fr);
     }
 }
+
+/* 异步搜索动画效果 */
+.search-result-item {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 搜索进度指示器样式 */
+#search-progress {
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 搜索结果计数器动画 */
+#searchResultsCount {
+    transition: color 0.3s ease;
+}

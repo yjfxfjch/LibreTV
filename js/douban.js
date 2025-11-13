@@ -406,39 +406,186 @@ function fetchDoubanTags() {
         });
 }
 
-// 渲染热门推荐内容
-function renderRecommend(tag, pageLimit, pageStart) {
+// 渲染热门推荐内容 - 改为异步加载
+async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
     const container = document.getElementById("douban-results");
     if (!container) return;
 
-    const loadingOverlayHTML = `
-        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-10">
-            <div class="flex items-center justify-center">
-                <div class="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin inline-block"></div>
-                <span class="text-pink-500 ml-4">加载中...</span>
+    // 初始化异步加载状态
+    initializeDoubanAsyncUI(container);
+    
+    // 异步获取多批数据
+    const batchSize = 8; // 每批获取8个
+    const totalBatches = Math.ceil(pageLimit / batchSize);
+    let completedBatches = 0;
+    let hasResults = false;
+    let allResults = [];
+
+    // 更新进度显示
+    const updateProgress = () => {
+        const progress = (completedBatches / totalBatches) * 100;
+        const progressBar = container.querySelector('#douban-progress-bar');
+        const progressText = container.querySelector('#douban-progress-text');
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+        if (progressText) {
+            progressText.textContent = `已加载: ${completedBatches} / ${totalBatches}`;
+        }
+
+        // 如果所有批次都完成了，隐藏加载状态
+        if (completedBatches === totalBatches) {
+            setTimeout(() => {
+                const loadingDiv = container.querySelector('.douban-loading-container');
+                if (loadingDiv) loadingDiv.remove();
+                
+                if (!hasResults) {
+                    container.innerHTML = `
+                        <div class="col-span-full text-center py-8">
+                            <div class="text-red-400">❌ 暂无数据，请尝试其他分类或刷新</div>
+                            <div class="text-gray-500 text-sm mt-2">提示：使用VPN可能有助于解决此问题</div>
+                        </div>
+                    `;
+                }
+            }, 500);
+        }
+    };
+
+    try {
+        // 使用 forEach 来启动并发加载（不等待结果）
+        for (let i = 0; i < totalBatches; i++) {
+            const batchStart = pageStart + (i * batchSize);
+            const currentBatchSize = Math.min(batchSize, pageLimit - (i * batchSize));
+            
+            // 异步获取每一批数据
+            (async () => {
+                try {
+                    const target = `https://movie.douban.com/j/search_subjects?type=${doubanMovieTvCurrentSwitch}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=${currentBatchSize}&page_start=${batchStart}`;
+                    
+                    const data = await fetchDoubanData(target);
+                    
+                    if (data && data.subjects && data.subjects.length > 0) {
+                        hasResults = true;
+                        
+                        // 立即显示这批结果
+                        appendDoubanResults(data.subjects, container);
+                        
+                        // 添加到全局结果中（用于可能的排序）
+                        allResults = allResults.concat(data.subjects);
+                    }
+                    
+                    completedBatches++;
+                    updateProgress();
+                    
+                } catch (error) {
+                    console.warn(`豆瓣第 ${i + 1} 批数据获取失败:`, error);
+                    completedBatches++;
+                    updateProgress();
+                }
+            })();
+        }
+        
+    } catch (error) {
+        console.error('豆瓣异步加载错误:', error);
+        container.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <div class="text-red-400">❌ 获取豆瓣数据失败，请稍后重试</div>
+                <div class="text-gray-500 text-sm mt-2">提示：使用VPN可能有助于解决此问题</div>
+            </div>
+        `;
+    }
+}
+
+// 初始化豆瓣异步加载UI
+function initializeDoubanAsyncUI(container) {
+    // 清空容器
+    container.innerHTML = '';
+    
+    // 添加加载状态
+    const loadingHTML = `
+        <div class="douban-loading-container col-span-full mb-4">
+            <div class="text-center text-pink-400 mb-4">
+                <div class="inline-flex items-center">
+                    <div class="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                    正在加载豆瓣热门内容...
+                </div>
+            </div>
+            <div class="mb-4">
+                <div class="bg-gray-800 rounded-full h-2">
+                    <div id="douban-progress-bar" class="bg-pink-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 text-center">
+                    <span id="douban-progress-text">已加载: 0 / 0</span>
+                </div>
             </div>
         </div>
     `;
+    
+    container.insertAdjacentHTML('beforeend', loadingHTML);
+}
 
-    container.classList.add("relative");
-    container.insertAdjacentHTML('beforeend', loadingOverlayHTML);
+// 动态添加豆瓣结果
+function appendDoubanResults(subjects, container) {
+    if (!subjects || subjects.length === 0) return;
+
+    // 移除加载指示器（如果存在且这是第一批结果）
+    const loadingDiv = container.querySelector('.douban-loading-container');
+    if (loadingDiv && !container.querySelector('.douban-card')) {
+        // 不立即移除，让进度条继续显示
+    }
+
+    // 创建新的卡片
+    const fragment = document.createDocumentFragment();
     
-    const target = `https://movie.douban.com/j/search_subjects?type=${doubanMovieTvCurrentSwitch}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
-    
-    // 使用通用请求函数
-    fetchDoubanData(target)
-        .then(data => {
-            renderDoubanCards(data, container);
-        })
-        .catch(error => {
-            console.error("获取豆瓣数据失败：", error);
-            container.innerHTML = `
-                <div class="col-span-full text-center py-8">
-                    <div class="text-red-400">❌ 获取豆瓣数据失败，请稍后重试</div>
-                    <div class="text-gray-500 text-sm mt-2">提示：使用VPN可能有助于解决此问题</div>
+    subjects.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "bg-[#111] hover:bg-[#222] transition-all duration-300 rounded-lg overflow-hidden flex flex-col transform hover:scale-105 shadow-md hover:shadow-lg douban-card animate-fadeIn";
+        
+        // 生成卡片内容
+        const safeTitle = item.title
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        
+        const safeRate = (item.rate || "暂无")
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        
+        // 处理图片URL
+        const originalCoverUrl = item.cover;
+        const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
+        
+        card.innerHTML = `
+            <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
+                <img src="${originalCoverUrl}" alt="${safeTitle}" 
+                    class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                    onerror="this.onerror=null; this.src='${proxiedCoverUrl}'; this.classList.add('object-contain');"
+                    loading="lazy" referrerpolicy="no-referrer">
+                <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
+                <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
+                    <span class="text-yellow-400">★</span> ${safeRate}
                 </div>
-            `;
-        });
+                <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm hover:bg-[#333] transition-colors">
+                    <a href="${item.url}" target="_blank" rel="noopener noreferrer" title="在豆瓣查看" onclick="event.stopPropagation();">
+                        🔗
+                    </a>
+                </div>
+            </div>
+            <div class="p-2 text-center bg-[#111]">
+                <button onclick="fillAndSearchWithDouban('${safeTitle}')" 
+                        class="text-sm font-medium text-white truncate w-full hover:text-pink-400 transition"
+                        title="${safeTitle}">
+                    ${safeTitle}
+                </button>
+            </div>
+        `;
+        
+        fragment.appendChild(card);
+    });
+    
+    // 添加到容器中
+    container.appendChild(fragment);
 }
 
 async function fetchDoubanData(url) {

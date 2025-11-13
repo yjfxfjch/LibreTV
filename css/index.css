@@ -163,6 +163,40 @@
     color: white;
 }
 
+/* 豆瓣异步加载动画效果 */
+.douban-card {
+    transition: all 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.douban-loading-container {
+    grid-column: 1 / -1;
+}
+
+/* 进度条样式优化 */
+.douban-loading-container .bg-gray-800 {
+    background: rgba(55, 65, 81, 0.8);
+}
+
+.douban-loading-container .bg-pink-500 {
+    background: linear-gradient(90deg, #ec4899, #db2777);
+    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.3);
+}
+
 /* 搜索结果样式 */
 .search-results-container {
     width: 100%;

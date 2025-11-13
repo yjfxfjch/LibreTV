@@ -433,7 +433,7 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
         }
         if (progressText) {
             // 显示实际加载的项目数量，更直观
-            progressText.textContent = `已加载 ${loadedCount} 个，预期 ${pageLimit} 个`;
+            progressText.textContent = `已加载 ${loadedCount} 个`;
         }
 
         // 如果所有批次都完成了，隐藏加载状态
@@ -508,16 +508,9 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
 function initializeDoubanAsyncUI(container) {
     // 清空容器
     container.innerHTML = '';
-    
-    // 添加加载状态，优化显示内容
+      // 添加加载状态，优化显示内容
     const loadingHTML = `
         <div class="douban-loading-container col-span-full mb-4 transition-all duration-200">
-            <div class="text-center text-pink-400 mb-4">
-                <div class="inline-flex items-center">
-                    <div class="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mr-2"></div>
-                    正在获取豆瓣热门内容...
-                </div>
-            </div>
             <div class="mb-4">
                 <div class="bg-gray-800 rounded-full h-2 shadow-inner">
                     <div id="douban-progress-bar" class="bg-gradient-to-r from-pink-500 to-pink-400 h-2 rounded-full transition-all duration-500 shadow-sm" style="width: 0%"></div>

@@ -414,12 +414,13 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
     // 初始化异步加载状态
     initializeDoubanAsyncUI(container);
     
-    // 异步获取多批数据
-    const batchSize = 8; // 每批获取8个
+    // 异步获取多批数据 - 优化批次大小
+    const batchSize = 4; // 减小批次大小，增加进度条显示时间
     const totalBatches = Math.ceil(pageLimit / batchSize);
     let completedBatches = 0;
     let hasResults = false;
     let allResults = [];
+    let loadedCount = 0; // 追踪实际加载的项目数量
 
     // 更新进度显示
     const updateProgress = () => {
@@ -431,14 +432,21 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
             progressBar.style.width = `${progress}%`;
         }
         if (progressText) {
-            progressText.textContent = `已加载: ${completedBatches} / ${totalBatches}`;
+            // 显示实际加载的项目数量，更直观
+            progressText.textContent = `已加载 ${loadedCount} 个，预期 ${pageLimit} 个`;
         }
 
         // 如果所有批次都完成了，隐藏加载状态
         if (completedBatches === totalBatches) {
+            // 减少延迟，让进度条快速消失
             setTimeout(() => {
                 const loadingDiv = container.querySelector('.douban-loading-container');
-                if (loadingDiv) loadingDiv.remove();
+                if (loadingDiv) {
+                    // 添加淡出动画
+                    loadingDiv.style.opacity = '0';
+                    loadingDiv.style.transform = 'translateY(-10px)';
+                    setTimeout(() => loadingDiv.remove(), 200);
+                }
                 
                 if (!hasResults) {
                     container.innerHTML = `
@@ -448,12 +456,10 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
                         </div>
                     `;
                 }
-            }, 500);
+            }, 200); // 从500ms减少到200ms
         }
-    };
-
-    try {
-        // 使用 forEach 来启动并发加载（不等待结果）
+    };    try {
+        // 使用 for 循环来启动并发加载（不等待结果）
         for (let i = 0; i < totalBatches; i++) {
             const batchStart = pageStart + (i * batchSize);
             const currentBatchSize = Math.min(batchSize, pageLimit - (i * batchSize));
@@ -467,6 +473,7 @@ async function renderRecommend(tag, pageLimit = doubanPageSize, pageStart = 0) {
                     
                     if (data && data.subjects && data.subjects.length > 0) {
                         hasResults = true;
+                        loadedCount += data.subjects.length; // 更新实际加载数量
                         
                         // 立即显示这批结果
                         appendDoubanResults(data.subjects, container);
@@ -502,21 +509,21 @@ function initializeDoubanAsyncUI(container) {
     // 清空容器
     container.innerHTML = '';
     
-    // 添加加载状态
+    // 添加加载状态，优化显示内容
     const loadingHTML = `
-        <div class="douban-loading-container col-span-full mb-4">
+        <div class="douban-loading-container col-span-full mb-4 transition-all duration-200">
             <div class="text-center text-pink-400 mb-4">
                 <div class="inline-flex items-center">
                     <div class="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mr-2"></div>
-                    正在加载豆瓣热门内容...
+                    正在获取豆瓣热门内容...
                 </div>
             </div>
             <div class="mb-4">
-                <div class="bg-gray-800 rounded-full h-2">
-                    <div id="douban-progress-bar" class="bg-pink-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                <div class="bg-gray-800 rounded-full h-2 shadow-inner">
+                    <div id="douban-progress-bar" class="bg-gradient-to-r from-pink-500 to-pink-400 h-2 rounded-full transition-all duration-500 shadow-sm" style="width: 0%"></div>
                 </div>
-                <div class="text-xs text-gray-400 mt-1 text-center">
-                    <span id="douban-progress-text">已加载: 0 / 0</span>
+                <div class="text-xs text-gray-400 mt-2 text-center">
+                    <span id="douban-progress-text">正在加载数据...</span>
                 </div>
             </div>
         </div>

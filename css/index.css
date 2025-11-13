@@ -185,16 +185,37 @@
 
 .douban-loading-container {
     grid-column: 1 / -1;
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 /* 进度条样式优化 */
 .douban-loading-container .bg-gray-800 {
     background: rgba(55, 65, 81, 0.8);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.douban-loading-container .bg-pink-500 {
-    background: linear-gradient(90deg, #ec4899, #db2777);
-    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.3);
+.douban-loading-container .bg-gradient-to-r {
+    background: linear-gradient(90deg, #ec4899, #db2777, #be185d);
+    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 添加闪光效果到进度条 */
+.douban-loading-container .bg-gradient-to-r::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
 }
 
 /* 搜索结果样式 */

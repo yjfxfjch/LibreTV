@@ -122,12 +122,10 @@ function isValidUrl(urlString) {
   }
 }
 
-// 修复反向代理处理过的路径
-app.use('/proxy', (req, res, next) => {
-  const targetUrl = req.url.replace(/^\//, '').replace(/(https?:)\/([^/])/, '$1//$2');
-  req.url = '/' + encodeURIComponent(targetUrl);
-  next();
-});
+// 之前这里对 /proxy 路径做了二次编码处理，导致目标 URL 被双重转义。
+// 那个中间件会让前端传入的已编码 URL 再次被 encodeURIComponent，从而使代理无法正确解码目标地址。
+// 移除该中间件，前端应直接请求 /proxy/<encodeURIComponent(url)>（例如 /proxy/https%3A%2F%2F...）。
+
 
 // 代理路由
 app.get('/proxy/:encodedUrl', async (req, res) => {
@@ -154,7 +152,11 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           responseType: 'stream',
           timeout: config.timeout,
           headers: {
-            'User-Agent': config.userAgent
+            'User-Agent': config.userAgent,
+            'Referer': (new URL(targetUrl)).origin,
+            'Accept': req.headers['accept'] || '*/*',
+            'Accept-Language': req.headers['accept-language'] || 'zh-CN,zh;q=0.9',
+            'Connection': 'keep-alive'
           }
         });
       } catch (error) {
@@ -169,14 +171,20 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 
     const response = await makeRequest();
 
-    // 转发响应头（过滤敏感头）
+    // 转发响应头（过滤敏感头），并保留/设置跨域头与状态
     const headers = { ...response.headers };
     const sensitiveHeaders = (
       process.env.FILTERED_HEADERS || 
-      'content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin'
+      'content-security-policy,cookie,set-cookie,x-frame-options'
     ).split(',');
-    
+
     sensitiveHeaders.forEach(header => delete headers[header]);
+
+    // 强制允许跨域访问，前端需要此头
+    headers['access-control-allow-origin'] = config.corsOrigin || '*';
+
+    // 将上游状态码转发到客户端
+    res.status(response.status || 200);
     res.set(headers);
 
     // 管道传输响应流

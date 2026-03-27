@@ -11,8 +11,8 @@ const MAX_RECURSION = parseInt(process.env.MAX_RECURSION || '5', 10); // 默认 
 // --- User Agent 处理 ---
 // 默认 User Agent 列表
 let USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15'
 ];
 // 尝试从环境变量读取并解析 USER_AGENTS_JSON
 try {
@@ -150,12 +150,21 @@ async function fetchContentWithType(targetUrl, requestHeaders) {
     } catch (e) {
         refererValue = requestHeaders['referer'] || '';
     }
+    const isDouban = /douban(io)?\.com$/i.test(new URL(targetUrl).hostname);
     const headers = {
         'User-Agent': getRandomUserAgent(),
-        'Accept': requestHeaders['accept'] || '*/*', // 传递原始 Accept 头（如果有）
-        'Accept-Language': requestHeaders['accept-language'] || 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept': isDouban
+            ? 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            : (requestHeaders['accept'] || '*/*'),
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Referer': refererValue,
+        'Cache-Control': 'no-cache'
     };
+    if (isDouban) {
+        headers['sec-fetch-dest'] = 'image';
+        headers['sec-fetch-mode'] = 'no-cors';
+        headers['sec-fetch-site'] = 'cross-site';
+    }
     // 清理空值的头
     Object.keys(headers).forEach(key => headers[key] === undefined || headers[key] === null || headers[key] === '' ? delete headers[key] : {});
 

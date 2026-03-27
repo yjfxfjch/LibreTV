@@ -20,7 +20,7 @@ const config = {
   timeout: parseInt(process.env.REQUEST_TIMEOUT || '5000'),
   maxRetries: parseInt(process.env.MAX_RETRIES || '2'),
   cacheMaxAge: process.env.CACHE_MAX_AGE || '1d',
-  userAgent: process.env.USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  userAgent: process.env.USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   debug: process.env.DEBUG === 'true'
 };
 
@@ -146,30 +146,32 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     
     const makeRequest = async () => {
       try {
-        // 豆瓣图片 CDN 检测 Referer，必须设为豆瓣页面地址，否则返回 418
-        let refererValue;
-        try {
-          const parsedTarget = new URL(targetUrl);
-          if (/douban(io)?\.com$/i.test(parsedTarget.hostname)) {
-            refererValue = 'https://movie.douban.com/';
-          } else {
-            refererValue = parsedTarget.origin;
-          }
-        } catch (e) {
-          refererValue = '';
+        // 豆瓣图片 CDN 检测 Referer、UA 等头，必须使用豆瓣页面地址作为 Referer
+        let parsedTarget;
+        try { parsedTarget = new URL(targetUrl); } catch (e) { parsedTarget = null; }
+        const isDouban = parsedTarget && /douban(io)?\.com$/i.test(parsedTarget.hostname);
+        const refererValue = isDouban ? 'https://movie.douban.com/' : (parsedTarget ? parsedTarget.origin : '');
+        const requestHeaders = {
+          'User-Agent': config.userAgent,
+          'Referer': refererValue,
+          'Accept': isDouban
+            ? 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            : (req.headers['accept'] || '*/*'),
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
+        };
+        if (isDouban) {
+          requestHeaders['sec-fetch-dest'] = 'image';
+          requestHeaders['sec-fetch-mode'] = 'no-cors';
+          requestHeaders['sec-fetch-site'] = 'cross-site';
         }
         return await axios({
           method: 'get',
           url: targetUrl,
           responseType: 'stream',
           timeout: config.timeout,
-          headers: {
-            'User-Agent': config.userAgent,
-            'Referer': refererValue,
-            'Accept': req.headers['accept'] || '*/*',
-            'Accept-Language': req.headers['accept-language'] || 'zh-CN,zh;q=0.9',
-            'Connection': 'keep-alive'
-          }
+          headers: requestHeaders
         });
       } catch (error) {
         if (retries < maxRetries) {

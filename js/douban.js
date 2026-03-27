@@ -552,8 +552,8 @@ function appendDoubanResults(subjects, container) {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
         
-        // 处理图片URL
-        const originalCoverUrl = item.cover;
+        // 处理图片URL，豆瓣 CDN 对 .webp 限制更严，转为 .jpg
+        const originalCoverUrl = (item.cover || '').replace(/\.webp$/i, '.jpg');
         const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
         
         card.innerHTML = `
@@ -670,10 +670,8 @@ function renderDoubanCards(data, container) {
                 .replace(/>/g, '&gt;');
             
             // 处理图片URL
-            // 1. 直接使用豆瓣图片URL (添加no-referrer属性)
-            const originalCoverUrl = item.cover;
-            
-            // 2. 也准备代理URL作为备选
+            // 豆瓣 CDN 对 .webp 限制更严，转为 .jpg 可降低被拦戴概率
+            const originalCoverUrl = (item.cover || '').replace(/\.webp$/i, '.jpg');
             const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
             
             // 为不同设备优化卡片布局

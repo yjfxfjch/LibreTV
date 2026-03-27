@@ -146,31 +146,43 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     
     const makeRequest = async () => {
       try {
-        // 豆瓣图片 CDN 检测 Referer、UA 等头，必须使用豆瓣页面地址作为 Referer
+        // 豆瓣图片 CDN 检测 Referer、UA、Client Hints 等头
         let parsedTarget;
         try { parsedTarget = new URL(targetUrl); } catch (e) { parsedTarget = null; }
         const isDouban = parsedTarget && /douban(io)?\.com$/i.test(parsedTarget.hostname);
+        // 豆瓣 webp 图片改用 jpg 请求，减少被拦截概率
+        const finalUrl = (isDouban && targetUrl.endsWith('.webp'))
+          ? targetUrl.replace(/\.webp$/, '.jpg')
+          : targetUrl;
         const refererValue = isDouban ? 'https://movie.douban.com/' : (parsedTarget ? parsedTarget.origin : '');
+        const DOUBAN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
         const requestHeaders = {
-          'User-Agent': config.userAgent,
+          'User-Agent': isDouban ? DOUBAN_UA : config.userAgent,
           'Referer': refererValue,
           'Accept': isDouban
             ? 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
             : (req.headers['accept'] || '*/*'),
           'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
           'Connection': 'keep-alive'
         };
         if (isDouban) {
+          requestHeaders['sec-ch-ua'] = '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"';
+          requestHeaders['sec-ch-ua-mobile'] = '?0';
+          requestHeaders['sec-ch-ua-platform'] = '"Windows"';
           requestHeaders['sec-fetch-dest'] = 'image';
           requestHeaders['sec-fetch-mode'] = 'no-cors';
           requestHeaders['sec-fetch-site'] = 'cross-site';
+          requestHeaders['Host'] = parsedTarget.hostname;
         }
         return await axios({
           method: 'get',
-          url: targetUrl,
+          url: finalUrl,
           responseType: 'stream',
           timeout: config.timeout,
+          maxRedirects: 5,
           headers: requestHeaders
         });
       } catch (error) {

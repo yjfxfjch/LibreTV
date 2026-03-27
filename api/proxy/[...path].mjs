@@ -137,12 +137,24 @@ function getRandomUserAgent() {
 
 async function fetchContentWithType(targetUrl, requestHeaders) {
     // 准备请求头
+    // 对豆瓣域名（img*.doubanio.com / *.douban.com）必须将 Referer 设为豆瓣站点，
+    // 否则豆瓣 CDN 会以 418 拒绝请求
+    let refererValue;
+    try {
+        const parsedTarget = new URL(targetUrl);
+        if (/douban(io)?\.com$/i.test(parsedTarget.hostname)) {
+            refererValue = 'https://movie.douban.com/';
+        } else {
+            refererValue = requestHeaders['referer'] || parsedTarget.origin;
+        }
+    } catch (e) {
+        refererValue = requestHeaders['referer'] || '';
+    }
     const headers = {
         'User-Agent': getRandomUserAgent(),
         'Accept': requestHeaders['accept'] || '*/*', // 传递原始 Accept 头（如果有）
         'Accept-Language': requestHeaders['accept-language'] || 'zh-CN,zh;q=0.9,en;q=0.8',
-        // 尝试设置一个合理的 Referer
-        'Referer': requestHeaders['referer'] || new URL(targetUrl).origin,
+        'Referer': refererValue,
     };
     // 清理空值的头
     Object.keys(headers).forEach(key => headers[key] === undefined || headers[key] === null || headers[key] === '' ? delete headers[key] : {});

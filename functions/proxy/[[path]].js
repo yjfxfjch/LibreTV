@@ -179,9 +179,19 @@ export async function onRequest(context) {
             'Accept': '*/*',
             // 尝试传递一些原始请求的头信息
             'Accept-Language': request.headers.get('Accept-Language') || 'zh-CN,zh;q=0.9,en;q=0.8',
-            // 尝试设置 Referer 为目标网站的域名，或者传递原始 Referer
-            'Referer': request.headers.get('Referer') || new URL(targetUrl).origin
         });
+
+        // 一些图片/媒体站点（如豆瓣的 img*.doubanio.com）会检测 Referer，明确设置为豆瓣来源可避免 418
+        try {
+            const parsed = new URL(targetUrl);
+            if (parsed.hostname && /douban(io)?\.com$/i.test(parsed.hostname)) {
+                headers.set('Referer', 'https://movie.douban.com/');
+            } else {
+                headers.set('Referer', request.headers.get('Referer') || parsed.origin);
+            }
+        } catch (e) {
+            headers.set('Referer', request.headers.get('Referer') || '');
+        }
 
         try {
             // 直接请求目标 URL
@@ -195,11 +205,19 @@ export async function onRequest(context) {
                  throw new Error(`HTTP error ${response.status}: ${response.statusText}. URL: ${targetUrl}. Body: ${errorBody.substring(0, 150)}`);
             }
 
-            // 读取响应内容为文本
-            const content = await response.text();
+            // 根据 Content-Type 决定以文本还是二进制读取响应
             const contentType = response.headers.get('Content-Type') || '';
+            // 如果是媒体或图片，使用 arrayBuffer 返回二进制，避免内容损坏
+            if (contentType.toLowerCase().startsWith('image/') || contentType.toLowerCase().startsWith('video/') || isMediaFile(targetUrl, contentType)) {
+                const arrayBuffer = await response.arrayBuffer();
+                logDebug(`请求成功(二进制): ${targetUrl}, Content-Type: ${contentType}, 字节长度: ${arrayBuffer.byteLength}`);
+                return { content: arrayBuffer, contentType, responseHeaders: response.headers, isBinary: true };
+            }
+
+            // 默认以文本读取（用于 M3U8 / HTML / JSON 等）
+            const content = await response.text();
             logDebug(`请求成功: ${targetUrl}, Content-Type: ${contentType}, 内容长度: ${content.length}`);
-            return { content, contentType, responseHeaders: response.headers }; // 同时返回原始响应头
+            return { content, contentType, responseHeaders: response.headers, isBinary: false }; // 同时返回原始响应头
 
         } catch (error) {
              logDebug(`请求彻底失败: ${targetUrl}: ${error.message}`);
@@ -465,21 +483,26 @@ export async function onRequest(context) {
         }
 
         // --- 实际请求 ---
-        const { content, contentType, responseHeaders } = await fetchContentWithType(targetUrl);
+        const { content, contentType, responseHeaders, isBinary } = await fetchContentWithType(targetUrl);
 
         // --- 写入缓存 (KV) ---
         if (kvNamespace) {
-             try {
-                 const headersToCache = {};
-                 responseHeaders.forEach((value, key) => { headersToCache[key.toLowerCase()] = value; });
-                 const cacheValue = { body: content, headers: JSON.stringify(headersToCache) };
-                 // 注意 KV 写入限制
-                 waitUntil(kvNamespace.put(cacheKey, JSON.stringify(cacheValue), { expirationTtl: CACHE_TTL }));
-                 logDebug(`已将原始内容写入缓存: ${targetUrl}`);
-            } catch (kvError) {
-                 logDebug(`向 KV 写入缓存失败 (${cacheKey}): ${kvError.message}`);
-                 // 写入失败不影响返回结果
-            }
+            try {
+                // 跳过对二进制内容的缓存（避免序列化问题）
+                if (!isBinary) {
+                    const headersToCache = {};
+                    responseHeaders.forEach((value, key) => { headersToCache[key.toLowerCase()] = value; });
+                    const cacheValue = { body: content, headers: JSON.stringify(headersToCache) };
+                    // 注意 KV 写入限制
+                    waitUntil(kvNamespace.put(cacheKey, JSON.stringify(cacheValue), { expirationTtl: CACHE_TTL }));
+                    logDebug(`已将原始内容写入缓存: ${targetUrl}`);
+                } else {
+                    logDebug(`二进制内容跳过缓存: ${targetUrl}`);
+                }
+           } catch (kvError) {
+                logDebug(`向 KV 写入缓存失败 (${cacheKey}): ${kvError.message}`);
+                // 写入失败不影响返回结果
+           }
         }
 
         // --- 处理响应 ---

@@ -146,6 +146,18 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     
     const makeRequest = async () => {
       try {
+        // 豆瓣图片 CDN 检测 Referer，必须设为豆瓣页面地址，否则返回 418
+        let refererValue;
+        try {
+          const parsedTarget = new URL(targetUrl);
+          if (/douban(io)?\.com$/i.test(parsedTarget.hostname)) {
+            refererValue = 'https://movie.douban.com/';
+          } else {
+            refererValue = parsedTarget.origin;
+          }
+        } catch (e) {
+          refererValue = '';
+        }
         return await axios({
           method: 'get',
           url: targetUrl,
@@ -153,7 +165,7 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
           timeout: config.timeout,
           headers: {
             'User-Agent': config.userAgent,
-            'Referer': (new URL(targetUrl)).origin,
+            'Referer': refererValue,
             'Accept': req.headers['accept'] || '*/*',
             'Accept-Language': req.headers['accept-language'] || 'zh-CN,zh;q=0.9',
             'Connection': 'keep-alive'
